@@ -4360,6 +4360,13 @@ test('every listed tool declares an output schema and returns structured content
   // tool the server lists has to declare one.
   const { tools } = await client.request('tools/list');
   assert.ok(tools.length > 0);
+  const assertPortableSchema = (schema, path) => {
+    if (!schema || typeof schema !== 'object' || Array.isArray(schema)) return;
+    assert.ok(Object.keys(schema).length > 0, `${path} is an unconstrained empty schema`);
+    for (const [key, value] of Object.entries(schema)) {
+      assertPortableSchema(value, `${path}.${key}`);
+    }
+  };
   for (const tool of tools) {
     assert.ok(tool.outputSchema, `${tool.name} has no outputSchema`);
     assert.equal(tool.outputSchema.type, 'object', tool.name);
@@ -4367,6 +4374,8 @@ test('every listed tool declares an output schema and returns structured content
       Object.keys(tool.outputSchema.properties ?? {}).length > 0,
       `${tool.name} declares no output properties`
     );
+    assertPortableSchema(tool.inputSchema, `${tool.name}.inputSchema`);
+    assertPortableSchema(tool.outputSchema, `${tool.name}.outputSchema`);
   }
 
   // A declared schema obliges the tool to return structured content. The text

@@ -1055,7 +1055,7 @@ const exchangeCallSchema = z.object({
     ),
   version: z.string().trim().min(1).max(128).optional().describe('Optional published workflow version. Omit to use the latest version.'),
   options: z
-    .record(z.string(), z.any())
+    .record(z.string(), z.json())
     .optional()
     .describe('Capability options as declared by its contract.'),
 });

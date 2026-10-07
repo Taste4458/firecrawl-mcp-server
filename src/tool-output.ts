@@ -18,8 +18,9 @@
  *    structured payload. The text block still carries the whole response.
  *
  * So these schemas name the documented keys and leave the value of anything
- * that passes through from the Firecrawl API unconstrained (`z.unknown()`,
- * which advertises as `{}` and accepts any shape). Only fields whose scalar
+ * that passes through from the Firecrawl API as any JSON value (`z.json()`).
+ * This remains unconstrained at runtime without advertising the non-portable
+ * empty schema `{}` produced by `z.unknown()`. Only fields whose scalar
  * type is part of the API contract are typed, and those are optional and
  * nullable through the `str`/`num`/`bool` helpers below: a value the schema
  * rejects would fail validation and turn a working call into an error.
@@ -78,7 +79,7 @@ const bool = (description: string) =>
   z.boolean().nullable().optional().describe(description);
 /** A value that passes through from the API, described but not constrained. */
 const unknown = (description: string) =>
-  z.unknown().optional().describe(description);
+  z.json().optional().describe(description);
 
 const success = bool('Whether the API call succeeded.');
 const error = unknown('Error message or error object when the call did not succeed.');
@@ -394,20 +395,22 @@ export const monitorCheckOutputSchema = z
 
 /**
  * Paper fields as the research endpoints return them. Inside an array item
- * `strictJsonSchema` leaves the object open, so unlisted fields survive both
- * the advertised schema and validation.
+ * `strictJsonSchema` leaves the object open through an explicit JSON-value
+ * catchall, so unlisted fields survive without a bare `true` schema.
  */
-const paperSchema = z.looseObject({
-  paperId: str('Canonical paper identifier.'),
-  primaryId: str('Display identifier, ordered for citation and fetch use.'),
-  ids: unknown('Source identifiers by namespace, such as `arxiv`, `doi`, or `pmid`.'),
-  title: str('Paper title.'),
-  abstract: str('Paper abstract.'),
-  authors: unknown('Authors, as a comma-joined string or as `{name, affiliation}` entries.'),
-  categories: z.array(z.string()).nullable().optional().describe('Paper categories, such as `cs.LG`.'),
-  createdDate: str('Date the paper was first indexed or published.'),
-  updateDate: str('Date the paper was last updated.'),
-});
+const paperSchema = z
+  .object({
+    paperId: str('Canonical paper identifier.'),
+    primaryId: str('Display identifier, ordered for citation and fetch use.'),
+    ids: unknown('Source identifiers by namespace, such as `arxiv`, `doi`, or `pmid`.'),
+    title: str('Paper title.'),
+    abstract: str('Paper abstract.'),
+    authors: unknown('Authors, as a comma-joined string or as `{name, affiliation}` entries.'),
+    categories: z.array(z.string()).nullable().optional().describe('Paper categories, such as `cs.LG`.'),
+    createdDate: str('Date the paper was first indexed or published.'),
+    updateDate: str('Date the paper was last updated.'),
+  })
+  .catchall(z.json());
 
 export const researchSearchOutputSchema = z
   .object({
@@ -436,7 +439,7 @@ export const researchReadOutputSchema = z
   .object({
     ...agentHints,
     passages: z
-      .array(z.looseObject({ text: str('Passage text.') }))
+      .array(z.object({ text: str('Passage text.') }).catchall(z.json()))
       .describe('In-body passages relevant to the question; empty when no full text is indexed.'),
   })
   .describe('Full-text passages from one paper.');
@@ -446,15 +449,15 @@ export const developerSearchOutputSchema = z
     ...agentHints,
     results: z
       .array(
-        z.looseObject({
+        z.object({
           id: str('Stable result id, such as `issue:owner/repo#123` or `doc:<hash>`; its prefix gives the source type.'),
           url: str('Source URL.'),
           title: str('Result title.'),
           passages: z
-            .array(z.looseObject({ text: str('Matched passage, in markdown.') }))
+            .array(z.object({ text: str('Matched passage, in markdown.') }).catchall(z.json()))
             .optional()
             .describe('Matched passages.'),
-        })
+        }).catchall(z.json())
       )
       .describe('Ranked results, in the order the text block lists them.'),
   })
@@ -465,12 +468,12 @@ export const govSearchOutputSchema = z
     ...agentHints,
     results: z
       .array(
-        z.looseObject({
+        z.object({
           url: str('Source URL.'),
           title: str('Result title.'),
           description: str('Matched snippet.'),
           position: num('Rank of the result, starting at 1.'),
-        })
+        }).catchall(z.json())
       )
       .describe('Ranked results, in the order the text block lists them.'),
   })
